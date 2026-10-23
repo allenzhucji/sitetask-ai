@@ -11,10 +11,10 @@ I am a site engineer on an overseas commercial building project. Site work produ
 I designed the features and workflow from my own site needs, and wrote the code together with AI tools (ChatGPT, Codex): describing requirements, reviewing generated code, testing and iterating.
 
 - **Stack:** Python 3.12, PySide6 (Qt), SQLite, Pydantic, PyInstaller (Windows .exe)
-- **Natural-language input:** "明天下午3点 检查 3F 钢筋" or "next Monday submit MS" is parsed locally into a dated task; low-confidence input can fall back to the OpenAI API, always with a preview before saving
-- **Email-to-task sync with an AI assistant:** an AI assistant (Grok Bot) monitors my work mailbox, picks out actionable items (inspections, approvals, deadlines, meeting actions) and pushes them into SiteTask AI as new or updated tasks in near real time, with links back to the source email
+- **Natural-language input:** "明天下午3点 检查 3F 钢筋" or "next Monday submit MS" is parsed locally into a dated task; low-confidence input can fall back to an AI API, always with a preview before saving
+- **Email-to-task sync with an AI assistant:** an AI assistant (Grok Bot/Dots) monitors my work mailbox, picks out actionable items (inspections, approvals, deadlines, meeting actions) and pushes them into SiteTask AI as new or updated tasks in near real time, with links back to the source email
 - **Local task queue:** the sync goes through an authorised JSON file queue with strict validation, de-duplication and completion protection, so the assistant never writes to the live database directly
-- **In progress:** a cloud API (Cloudflare) so assistants can add, update and delete tasks remotely and sync them to the desktop app
+- **Cloud API:** Cloudflare, so assistants can add, update and delete tasks remotely and sync them to the desktop app
 - **Tests:** 289 automated tests (pytest), with all AI calls mocked
 
 **中文**
@@ -23,10 +23,10 @@ I designed the features and workflow from my own site needs, and wrote the code 
 功能和流程由我根据现场实际需求设计，代码借助 ChatGPT、Codex 等 AI 工具完成：我负责提出需求、审阅生成的代码、测试和迭代。
 
 - **技术栈：** Python 3.12、PySide6（Qt）、SQLite、Pydantic、PyInstaller 打包为 Windows exe
-- **自然语言录入：** 输入"明天下午3点 检查 3F 钢筋"即可在本地解析为带日期的任务；本地把握不大时可回退调用 OpenAI 接口，保存前均需预览确认
-- **邮件实时同步任务：** AI 助手（Grok Bot）实时监控工作邮箱，识别需要跟进的事项（验收、报审、截止日期、会议行动项等），自动在 SiteTask AI 中新增或更新任务，并附来源邮件链接
+- **自然语言录入：** 输入"明天下午3点 检查 3F 钢筋"即可在本地解析为带日期的任务；本地把握不大时可回退调用 API 接口，保存前均需预览确认
+- **邮件实时同步任务：** AI 助手（Grok Bot/Dots）实时监控工作邮箱，识别需要跟进的事项（验收、报审、截止日期、会议行动项等），自动在 SiteTask AI 中新增或更新任务，并附来源邮件链接
 - **本地任务队列：** 同步通过经授权的 JSON 文件队列完成，带严格字段校验、去重和已完成任务保护，AI 助手不直接写入运行中的数据库
-- **开发中：** 云端接口（Cloudflare），让 AI 助手可远程新增、更新、删除任务并同步到桌面程序
+- **云端接口：** Cloudflare，让 AI 助手可远程新增、更新、删除任务并同步到桌面程序
 - **测试：** 289 项自动化测试（pytest），AI 调用全部使用 mock
 
 > Sample data only. No real project data, credentials or personal information is included in this repository.
