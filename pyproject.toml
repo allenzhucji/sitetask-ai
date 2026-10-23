@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sitetask-ai"
+version = "0.1.0"
+description = "Windows desktop task widget for construction-site follow-up work"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "PySide6>=6.8,<7",
+    "pydantic>=2.10,<3",
+    "dateparser>=1.2,<2",
+    "python-dateutil>=2.9,<3",
+    "openai>=2,<3",
+    "keyring>=25,<26",
+    "winotify==1.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<10",
+    "pytest-qt>=4.4,<5",
+    "pyinstaller>=6,<7",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--basetemp=.test-tmp"]
+cache_dir = ".test-cache"
+qt_api = "pyside6"

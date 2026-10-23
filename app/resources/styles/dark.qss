@@ -1,0 +1,563 @@
+QWidget {
+    color: #e8ebf0;
+    font-family: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI";
+    font-size: 12px;
+}
+
+/* 主窗口背景由 MainWidget.paintEvent 用 QPainter 绘制（圆角 12px +
+   rgba 半透明），因为 Qt 对顶层窗口不绘制 QSS 背景；此处不再设置，
+   避免鼠标命中区域依赖 QSS 背景的 alpha。 */
+QDialog {
+    background-color: #17191f;
+}
+
+QToolTip {
+    background-color: #2b303b;
+    color: #f5f7fa;
+    border: 1px solid #505867;
+    padding: 5px;
+}
+
+QLabel {
+    background: transparent;
+}
+
+QLineEdit,
+QTextEdit,
+QDateEdit,
+QTimeEdit,
+QDoubleSpinBox,
+QComboBox {
+    background-color: #20232b;
+    border: 1px solid #3a404d;
+    border-radius: 6px;
+    color: #f1f3f5;
+    padding: 6px;
+    selection-background-color: #3c6e71;
+}
+
+QLineEdit:focus,
+QTextEdit:focus,
+QDateEdit:focus,
+QTimeEdit:focus,
+QDoubleSpinBox:focus,
+QComboBox:focus {
+    border-color: #68a7a5;
+}
+
+QLineEdit:disabled,
+QTextEdit:disabled,
+QDateEdit:disabled,
+QTimeEdit:disabled,
+QDoubleSpinBox:disabled,
+QComboBox:disabled {
+    /* 背景与 enabled 一致（用户要求日期框/时间框颜色一致；
+    不可编辑仅以灰色文字区分） */
+    background-color: #20232b;
+    color: #737b88;
+}
+
+QComboBox::drop-down {
+    border: none;
+    width: 20px;
+}
+
+QComboBox::down-arrow {
+    image: url("@ARROW_DOWN_ICON@");
+    width: 10px;
+    height: 6px;
+}
+
+/* Fusion/Windows 的原生式 ComboBox popup 会忽略 maxVisibleItems，导致
+   Quick Task 的 121 天日期列表铺满整屏。关闭原生式 popup 后，Qt 才会
+   按 DateComboBox.maxVisibleItems=7 限制为当前日期前后各三天。 */
+QComboBox#quickTaskDate {
+    combobox-popup: 0;
+}
+
+QDateEdit,
+QTimeEdit,
+QCalendarWidget {
+    font-family: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI";
+}
+
+/* 原生 QAbstractSpinBox（QTimeEdit 等）的上下调整按钮：默认是 Windows
+   灰白按钮样式，与面板深色圆角风格不一致；统一为深色圆角小按钮 +
+   自绘箭头（白色箭头，disabled 用灰色箭头） */
+QTimeEdit::up-button,
+QTimeEdit::down-button,
+QDateEdit::up-button,
+QDateEdit::down-button,
+QSpinBox::up-button,
+QSpinBox::down-button,
+QDoubleSpinBox::up-button,
+QDoubleSpinBox::down-button {
+    width: 18px;
+    margin: 1px;
+    border: none;
+    border-radius: 3px;
+    background-color: rgba(255, 255, 255, 0.07);
+}
+
+/* QDateEdit 日历弹窗触发按钮（drop-down）：样式与时间框上下按钮一致 */
+QDateEdit::drop-down {
+    border: none;
+    border-radius: 6px;
+    width: 20px;
+    margin: 1px;
+    background-color: rgba(255, 255, 255, 0.07);
+}
+
+QDateEdit::drop-down:hover {
+    background-color: rgba(255, 255, 255, 0.14);
+}
+
+QDateEdit::drop-down:pressed {
+    background-color: #2d5960;
+}
+
+QTimeEdit::up-button:hover,
+QTimeEdit::down-button:hover,
+QDateEdit::up-button:hover,
+QDateEdit::down-button:hover,
+QSpinBox::up-button:hover,
+QSpinBox::down-button:hover,
+QDoubleSpinBox::up-button:hover,
+QDoubleSpinBox::down-button:hover {
+    background-color: rgba(255, 255, 255, 0.14);
+}
+
+QTimeEdit::up-button:pressed,
+QTimeEdit::down-button:pressed,
+QDateEdit::up-button:pressed,
+QDateEdit::down-button:pressed,
+QSpinBox::up-button:pressed,
+QSpinBox::down-button:pressed,
+QDoubleSpinBox::up-button:pressed,
+QDoubleSpinBox::down-button:pressed {
+    background-color: #2d5960;
+}
+
+QTimeEdit::up-button:disabled,
+QTimeEdit::down-button:disabled,
+QDateEdit::up-button:disabled,
+QDateEdit::down-button:disabled,
+QSpinBox::up-button:disabled,
+QSpinBox::down-button:disabled,
+QDoubleSpinBox::up-button:disabled,
+QDoubleSpinBox::down-button:disabled {
+    background-color: transparent;
+}
+
+QTimeEdit::up-arrow,
+QDateEdit::up-arrow,
+QSpinBox::up-arrow,
+QDoubleSpinBox::up-arrow {
+    width: 10px;
+    height: 6px;
+    image: url("@ARROW_UP_ICON@");
+}
+
+QTimeEdit::down-arrow,
+QDateEdit::down-arrow,
+QSpinBox::down-arrow,
+QDoubleSpinBox::down-arrow {
+    width: 10px;
+    height: 6px;
+    image: url("@ARROW_DOWN_ICON@");
+}
+
+QTimeEdit::up-arrow:disabled,
+QDateEdit::up-arrow:disabled,
+QSpinBox::up-arrow:disabled,
+QDoubleSpinBox::up-arrow:disabled {
+    image: url("@ARROW_UP_GRAY_ICON@");
+}
+
+QTimeEdit::down-arrow:disabled,
+QDateEdit::down-arrow:disabled,
+QSpinBox::down-arrow:disabled,
+QDoubleSpinBox::down-arrow:disabled {
+    image: url("@ARROW_DOWN_GRAY_ICON@");
+}
+
+QCalendarWidget {
+    background-color: #1b1e25;
+    color: #d9dee7;
+    border: 1px solid #444b59;
+    border-radius: 8px;
+    font-size: 13px;
+}
+
+QCalendarWidget QWidget#qt_calendar_navigationbar {
+    min-height: 34px;
+    background-color: #252a34;
+    border-bottom: 1px solid #3a404d;
+    /* 顶部两角随弹窗圆角（略小 1px，避免露出容器边框角） */
+    border-top-left-radius: 7px;
+    border-top-right-radius: 7px;
+}
+
+QCalendarWidget QToolButton {
+    min-width: 30px;
+    min-height: 28px;
+    margin: 2px;
+    padding: 2px 7px;
+    background-color: transparent;
+    color: #eef1f5;
+    border: 0;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+QCalendarWidget QToolButton:hover {
+    background-color: #343b48;
+}
+
+QCalendarWidget QToolButton:pressed {
+    background-color: #2d5960;
+}
+
+QCalendarWidget QToolButton::menu-indicator {
+    image: none;
+}
+
+QCalendarWidget QSpinBox {
+    min-height: 24px;
+    margin: 2px;
+    padding: 2px 5px;
+    background-color: #20232b;
+    color: #eef1f5;
+    border: 1px solid #3a404d;
+    border-radius: 4px;
+    selection-background-color: #3c6e71;
+}
+
+QCalendarWidget QAbstractItemView {
+    background-color: #1b1e25;
+    color: #d9dee7;
+    border: 0;
+    outline: 0;
+    selection-background-color: #3c6e71;
+    selection-color: #ffffff;
+    font-family: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI";
+    font-size: 12px;
+}
+
+QCalendarWidget QAbstractItemView:item {
+    padding: 4px;
+}
+
+QCalendarWidget QAbstractItemView:item:hover {
+    background-color: #303743;
+    color: #ffffff;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #242832;
+    color: #f1f3f5;
+    border: 1px solid #444b59;
+    selection-background-color: #3c526e;
+    outline: 0;
+}
+
+QPushButton {
+    min-height: 26px;
+    border: 0;
+    border-radius: 6px;
+    background-color: #2c313c;
+    color: #dce1e8;
+    padding: 5px 10px;
+}
+
+QPushButton:hover {
+    background-color: #3a414f;
+}
+
+QPushButton:pressed {
+    background-color: #242933;
+}
+
+QPushButton:disabled {
+    background-color: #242730;
+    color: #6f7784;
+}
+
+QCheckBox {
+    spacing: 7px;
+}
+
+QCheckBox::indicator {
+    width: 15px;
+    height: 15px;
+}
+
+QCheckBox::indicator:unchecked {
+    border: 1px solid #596170;
+    border-radius: 3px;
+    background-color: #20232b;
+}
+
+QCheckBox::indicator:checked {
+    border: 1px solid #68a7a5;
+    border-radius: 3px;
+    background-color: #3c6e71;
+    image: url("@CHECK_ICON@");
+}
+
+QMenu {
+    background-color: #242832;
+    color: #eef1f5;
+    border: 1px solid #444b59;
+    padding: 5px;
+}
+
+QMenu::item {
+    border-radius: 4px;
+    padding: 6px 24px 6px 10px;
+}
+
+QMenu::item:selected {
+    background-color: #3c526e;
+}
+
+QScrollArea,
+QWidget#taskContainer {
+    background: transparent;
+    border: 0;
+}
+
+QScrollBar:vertical {
+    width: 8px;
+    margin: 2px;
+    background: transparent;
+}
+
+QScrollBar::handle:vertical {
+    min-height: 28px;
+    border-radius: 4px;
+    background: #414856;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #596271;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical,
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical {
+    height: 0;
+    background: transparent;
+}
+
+QTableWidget {
+    background-color: #1b1e25;
+    alternate-background-color: #20242c;
+    border: 1px solid #353b47;
+    gridline-color: #303642;
+    selection-background-color: #345a64;
+    selection-color: #ffffff;
+}
+
+QHeaderView::section {
+    background-color: #292e38;
+    color: #cbd1da;
+    border: 0;
+    border-right: 1px solid #3a414d;
+    padding: 7px;
+    font-weight: 600;
+}
+
+/* 面板：半透明层次透出玻璃模糊（窗口圆角由 paintEvent 绘制，
+   面板从 6px 布局边距开始，不会盖住圆角） */
+QWidget#titleBar,
+QWidget#quickAddWidget,
+QWidget#aiInputWidget {
+    background-color: rgba(33, 36, 44, 170);
+}
+
+QWidget#quickAddWidget,
+QWidget#aiInputWidget {
+    border-top: 1px solid rgba(48, 53, 65, 200);
+}
+
+QLabel#titleLabel {
+    color: #f8f9fa;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+QLabel#taskSummary {
+    color: #a3aab6;
+    background: transparent;
+    padding: 0;
+    font-size: 10px;
+}
+
+QLabel#sectionTitle {
+    color: #87909e;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+/* 任务卡片背景/悬停高亮由 qfluentwidgets CardWidget 自带（半透明圆角
+   + hover 提亮），这里只定制卡片内部元素 */
+
+QWidget#taskSection[dragActive="true"] {
+    border: 1px solid #65b8b5;
+    border-radius: 8px;
+}
+
+/* 拖拽插入线：青绿渐变点缀 */
+QFrame#dropIndicator {
+    background: qlineargradient(
+        x1: 0, y1: 0, x2: 1, y2: 0,
+        stop: 0 rgba(116, 216, 210, 255),
+        stop: 1 rgba(90, 166, 190, 255)
+    );
+    border: 0;
+    border-radius: 1px;
+    margin-left: 4px;
+    margin-right: 4px;
+}
+
+QLabel#taskTitle {
+    color: #f1f3f5;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+QLabel#taskMetadata {
+    color: #9aa1ad;
+    font-size: 11px;
+}
+
+/* 紧急程度圆点：8x8 实心圆，level 动态属性驱动配色（红=紧急/橙=高/绿=普通/灰=低） */
+QLabel#taskPriorityDot {
+    border-radius: 4px;
+}
+
+QLabel#taskPriorityDot[level="urgent"] {
+    background-color: #ff4d4f;
+}
+
+QLabel#taskPriorityDot[level="high"] {
+    background-color: #ffa940;
+}
+
+QLabel#taskPriorityDot[level="normal"] {
+    background-color: #52c41a;
+}
+
+QLabel#taskPriorityDot[level="low"] {
+    background-color: #8c8c8c;
+}
+
+QLabel#emptyStateTitle {
+    color: #f1f3f5;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+QLabel#emptyStateMessage {
+    color: #9aa1ad;
+}
+
+QFrame#toastWidget {
+    background-color: rgba(43, 48, 59, 200);
+    border: 1px solid rgba(61, 68, 82, 200);
+    border-radius: 8px;
+}
+
+QLabel#toastMessage {
+    color: #f1f3f5;
+}
+
+QPushButton#toastUndoButton {
+    color: #79c2bb;
+    font-weight: 700;
+}
+
+QPushButton#pinButton,
+QPushButton#allTasksButton,
+QPushButton#settingsButton,
+QPushButton#minimizeButton,
+QPushButton#closeButton {
+    min-width: 18px;
+    max-width: 18px;
+    min-height: 18px;
+    max-height: 18px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+}
+
+QPushButton#pinButton:checked {
+    background-color: #345e64;
+}
+
+QPushButton#closeButton:hover,
+QPushButton#allTasksDeleteButton:hover {
+    background-color: #a83e45;
+    color: white;
+}
+
+/* 主操作按钮：垂直渐变强调 */
+QPushButton#quickTaskAddButton,
+QPushButton#viewLaterButton {
+    background: qlineargradient(
+        x1: 0, y1: 0, x2: 0, y2: 1,
+        stop: 0 #3a7a85,
+        stop: 1 #2d5960
+    );
+}
+
+QPushButton#quickTaskAddButton:hover,
+QPushButton#viewLaterButton:hover {
+    background: qlineargradient(
+        x1: 0, y1: 0, x2: 0, y2: 1,
+        stop: 0 #438b97,
+        stop: 1 #346a72
+    );
+}
+
+QPushButton#parseTaskButton {
+    background: qlineargradient(
+        x1: 0, y1: 0, x2: 0, y2: 1,
+        stop: 0 #4a6280,
+        stop: 1 #3c526e
+    );
+}
+
+QPushButton#parseTaskButton:hover {
+    background: qlineargradient(
+        x1: 0, y1: 0, x2: 0, y2: 1,
+        stop: 0 #557092,
+        stop: 1 #455d7c
+    );
+}
+
+QPushButton#taskInputToggleButton {
+    background-color: rgba(33, 36, 44, 170);
+    color: #79c2bb;
+    border: 1px solid #3a414d;
+    border-radius: 6px;
+    min-width: 88px;
+    padding: 5px 10px;
+}
+
+QPushButton#taskInputToggleButton:checked {
+    background-color: #29313b;
+}
+
+QLabel#quickAddHeading,
+QLabel#aiTaskHeading {
+    color: #f1f3f5;
+    font-weight: 600;
+}
+
+QLabel#previewWarning {
+    color: #e0a36d;
+}

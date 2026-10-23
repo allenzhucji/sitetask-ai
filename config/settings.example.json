@@ -1,0 +1,35 @@
+{
+  "window": {
+    "width": 400,
+    "height": 700,
+    "x": null,
+    "y": null,
+    "is_pinned": false,
+    "close_to_tray": true
+  },
+  "display": {
+    "days_ahead": 3,
+    "show_overdue": true,
+    "show_later_count": true,
+    "theme": "dark"
+  },
+  "task_defaults": {
+    "default_due_time": "17:00",
+    "apply_default_time": true,
+    "default_priority": "normal",
+    "default_category": "Other"
+  },
+  "ai": {
+    "enabled": false,
+    "model": "",
+    "local_parser_threshold": 0.8
+  },
+  "notifications": {
+    "enabled": true,
+    "one_hour_before": true,
+    "at_due_time": true
+  },
+  "startup": {
+    "start_with_windows": false
+  }
+}

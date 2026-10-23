@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.test-cache/
+.test-tmp/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Runtime data and secrets
+config/settings.json
+data/*.db
+data/*.db-*
+logs/*.log*
+.env
+
+# Build output
+build/
+dist/
+*.spec
+
+# Editors and operating system
+.idea/
+.vscode/
+Thumbs.db
+Desktop.ini
