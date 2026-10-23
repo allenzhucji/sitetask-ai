@@ -34,7 +34,7 @@ def make_service(registry, *, frozen=False):
     return StartupService(
         registry=registry,
         executable_path=Path(r"C:\Program Files\SiteTask Python\python.exe"),
-        script_path=Path(r"C:\Users\Engineer\SiteTask AI\main.py"),
+        script_path=Path(r"C:\Example\SiteTask AI\main.py"),
         frozen=frozen,
     )
 
@@ -44,7 +44,7 @@ def test_development_command_uses_pythonw_and_quotes_paths():
 
     assert service.command == (
         '"C:\\Program Files\\SiteTask Python\\pythonw.exe" '
-        '"C:\\Users\\Engineer\\SiteTask AI\\main.py"'
+        '"C:\\Example\\SiteTask AI\\main.py"'
     )
 
 

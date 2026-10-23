@@ -11,16 +11,48 @@ htmlcov/
 venv/
 
 # Runtime data and secrets
-config/settings.json
-data/*.db
-data/*.db-*
-logs/*.log*
+data/
+logs/
+config/*
+!config/settings.example.json
 .env
+.env.*
+!.env.example
+!.env.template
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.log
+*.log.*
+*.bak
+*.backup
+*.dump
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local assistant state and copies of private runtime content
+.agents/
+.codex/
+backups/
+exports/
+screenshots/
 
 # Build output
 build/
 dist/
+outputs/
+_internal/
 *.spec
+*.exe
+*.zip
+*.7z
+*.tar
+*.gz
 
 # Editors and operating system
 .idea/

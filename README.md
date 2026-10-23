@@ -6,31 +6,29 @@
 ## About / 项目简介
 
 **English**
-I am a site engineer on an overseas commercial building project. Site work produces a constant stream of small, time-sensitive items: inspection requests, drawing queries, method statements, material approvals, meeting actions and reports. SiteTask AI is a lightweight Windows widget I built to capture and track them, so nothing slips.
+SiteTask AI is a lightweight Windows widget for tracking inspection requests, drawing queries, method statements, material approvals, meeting actions and reports.
 
-I designed the features and workflow from my own site needs, and wrote the code together with AI tools (ChatGPT, Codex): describing requirements, reviewing generated code, testing and iterating.
+The application was developed with AI tools (ChatGPT, Codex), with human requirements, code review, testing and iteration.
 
 - **Stack:** Python 3.12, PySide6 (Qt), SQLite, Pydantic, PyInstaller (Windows .exe)
 - **Natural-language input:** "明天下午3点 检查 3F 钢筋" or "next Monday submit MS" is parsed locally into a dated task; low-confidence input can fall back to an AI API, always with a preview before saving
-- **Email-to-task sync with an AI assistant:** an AI assistant (Grok Bot/Dots) monitors my work mailbox, picks out actionable items (inspections, approvals, deadlines, meeting actions) and pushes them into SiteTask AI as new or updated tasks in near real time, with links back to the source email
-- **Local task queue:** the sync goes through an authorised JSON file queue with strict validation, de-duplication and completion protection, so the assistant never writes to the live database directly
-- **Cloud API:** Cloudflare, so assistants can add, update and delete tasks remotely and sync them to the desktop app
-- **Tests:** 289 automated tests (pytest), with all AI calls mocked
+- **Local task queue:** separately authorised tools can submit tasks through a local JSON file queue with strict validation, de-duplication and completion protection. See [QUEUE_API.md](QUEUE_API.md).
+- **Integration boundary:** this repository does not include a mailbox monitor, cloud API or remote task deletion. External integrations need their own configuration and privacy review.
+- **Tests:** pytest coverage with mocked AI calls, plus a dependency-free repository privacy check
 
 **中文**
-我是海外商业综合体项目的现场工程师。现场每天有大量零碎但有时限的事项：验收申请、图纸疑问、施工方案、材料报审、会议行动项和报告。SiteTask AI 是我为此开发的 Windows 桌面小组件，用来随手记录、跟踪这些事项，避免遗漏。
+SiteTask AI 是用于记录和跟踪验收申请、图纸疑问、施工方案、材料报审、会议行动项和报告的 Windows 桌面小组件。
 
-功能和流程由我根据现场实际需求设计，代码借助 ChatGPT、Codex 等 AI 工具完成：我负责提出需求、审阅生成的代码、测试和迭代。
+代码借助 ChatGPT、Codex 等 AI 工具完成，并由人工提出需求、审阅代码、测试和迭代。
 
 - **技术栈：** Python 3.12、PySide6（Qt）、SQLite、Pydantic、PyInstaller 打包为 Windows exe
 - **自然语言录入：** 输入"明天下午3点 检查 3F 钢筋"即可在本地解析为带日期的任务；本地把握不大时可回退调用 API 接口，保存前均需预览确认
-- **邮件实时同步任务：** AI 助手（Grok Bot/Dots）实时监控工作邮箱，识别需要跟进的事项（验收、报审、截止日期、会议行动项等），自动在 SiteTask AI 中新增或更新任务，并附来源邮件链接
-- **本地任务队列：** 同步通过经授权的 JSON 文件队列完成，带严格字段校验、去重和已完成任务保护，AI 助手不直接写入运行中的数据库
-- **云端接口：** Cloudflare，让 AI 助手可远程新增、更新、删除任务并同步到桌面程序
-- **测试：** 289 项自动化测试（pytest），AI 调用全部使用 mock
+- **本地任务队列：** 经单独授权的外部工具可通过本地 JSON 文件队列提交任务，带严格字段校验、去重和已完成任务保护。见 [QUEUE_API.md](QUEUE_API.md)。
+- **集成边界：** 本仓库不包含邮箱监控、云端接口或远程删除任务功能。外部集成需独立配置并审查隐私。
+- **测试：** pytest 自动化覆盖，AI 调用使用 mock；另有无需应用依赖的仓库隐私检查
 
-> Sample data only. No real project data, credentials or personal information is included in this repository.
-> 仓库中不含任何真实项目数据、密钥或个人信息。
+> Keep examples synthetic. Never commit runtime data, credentials or private project material. See [PRIVACY.md](PRIVACY.md) before contributing or sharing a build.
+> 示例应使用虚构数据。不要提交运行数据、密钥或私人项目资料；提交代码或分享构建前请阅读 [PRIVACY.md](PRIVACY.md)。
 
 ---
 ## 详细说明（中文）
@@ -162,7 +160,7 @@ scripts\test.bat
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-当前测试结果：289 项通过、0 项失败。AI 测试不发送真实收费请求。
+请以当前提交的测试运行结果为准；历史验收报告不代表后续提交已经通过验证。AI 测试不发送真实收费请求。
 
 ## 构建
 
@@ -185,7 +183,8 @@ scripts\clean.bat
 - 本版本没有用户账户、云同步、在线数据库或后台服务器。
 - 只有启用 AI 且本地解析置信度不足时，原始自然语言输入才会发送给配置的 OpenAI 服务。
 - API Key 由 Windows Credential Manager/keyring 保存，不保存在普通配置文件中。
-- 日志默认不记录完整任务文本，并对常见 API Key 格式脱敏。
+- 日志默认不记录完整任务文本，并对常见 API Key 格式脱敏；异常诊断省略原始错误文本、源代码行和完整本机路径。
+- 本地队列请求、回执、归档及拒绝文件可能含完整任务和邮件链接，与数据库同样需要保密。
 - 用户应根据所在组织的隐私和项目保密要求决定是否启用 AI。
 
 ## 已知限制

@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 import sys
+from copy import copy
 from logging.handlers import RotatingFileHandler
 from types import TracebackType
 
@@ -23,13 +24,43 @@ class RedactingFormatter(logging.Formatter):
     )
 
     def format(self, record: logging.LogRecord) -> str:
-        output = super().format(record)
+        # Other formatters may cache a complete exception (including task text)
+        # on the shared record. Never reuse that cache or mutate other handlers.
+        safe_record = copy(record)
+        safe_record.exc_text = None
+        output = super().format(safe_record)
         for pattern in self._patterns:
             if pattern.groups:
                 output = pattern.sub(r"\1[REDACTED]", output)
             else:
                 output = pattern.sub("[REDACTED]", output)
         return output
+
+    def formatException(
+        self,
+        exc_info: tuple[
+            type[BaseException] | None, BaseException | None, TracebackType | None
+        ],
+    ) -> str:
+        # Exception messages, chains and source lines can include task contents,
+        # credentials and local user paths. Keep only useful code locations.
+        exception_type, _, traceback = exc_info
+        locations = []
+        while traceback is not None:
+            code = traceback.tb_frame.f_code
+            filename = re.split(r"[\\/]", code.co_filename)[-1]
+            locations.append(
+                f"  {filename}:{traceback.tb_lineno} in {code.co_name}"
+            )
+            traceback = traceback.tb_next
+        # logging accepts exc_info=True even outside an exception handler.
+        name = exception_type.__name__ if exception_type is not None else "Exception"
+        locations.append(f"{name}: [REDACTED]")
+        return "\n".join(locations)
+
+    def formatStack(self, stack_info: str) -> str:
+        # Preformatted stack text contains absolute paths and source lines.
+        return "Stack details: [REDACTED]"
 
 
 def configure_logging(paths: AppPaths | None = None) -> logging.Logger:
