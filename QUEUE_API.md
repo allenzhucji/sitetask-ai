@@ -81,7 +81,7 @@ UTF-8 JSON，最大32768字节；禁止重复键、未知字段及类型隐式�
 - command_id 与规范化内容摘要存入 `local_queue_commands`。同ID同内容返回原回执；同ID不同内容返回冲突。任务变更与回执在同一SQLite事务，提交后文件回执失败会自动重建。
 - source_reference 独立去重。同来源 create 返回 existing，不覆盖任何字段；来源不唯一返回 conflict。不会根据标题猜测合并，调用方必须沿用已有稳定来源键。
 - 只更新 pending。completed/cancelled 返回 protected，全部字段保持原样。禁止写 status/completed_at/id/source/source_reference/created_at、禁止删除或恢复。
-- `local_queue_sources` 保留关联和删除标记，删除后不因旧邮件再建。历史排除 T002、T003、T004、T013 永久返回 protected。
+- `local_queue_sources` 保留关联和删除标记，删除后不因旧邮件再建。已有历史排除规则继续返回 protected，不应绕过或删除保护。
 - 更新在事务中检查整行 revision；有更改则 conflict。已关联任务还比较上次队列写入的基线：即使调用方刚重新读取，也不会覆盖其后发生的手工改动。冲突没有 force 参数，须人工核对；不要自动换UUID反复尝试覆盖。
 - 迁移4只增加队列账本、关联表和删除触发器，为已有来源建立版本基线，不改变现有任务字段。
 - 编辑器、预览、模态窗、菜单、鼠标操作或短暂撤销期中暂停消费；活跃输入草稿也暂停。关闭编辑器后重新检查 revision。处理后刷新主界面和All Tasks，保留All Tasks选中任务。
@@ -91,6 +91,8 @@ UTF-8 JSON，最大32768字节；禁止重复键、未知字段及类型隐式�
 ## 回执及限制
 
 状态：created、updated、existing、found、not_found、protected、conflict、invalid、ok。回执含 command_id、payload_sha256、processed_at；适用时含完整 task 和 revision；冲突/保护有 reason。queued/no_receipt 不是成功。遇到conflict/protected停止自动写入，报告原因。
+
+请求、回执、归档、拒绝文件以及 CLI `read` 输出可能包含完整任务、人员信息和来源邮件链接。不要把这些文件或终端截图提交到仓库、附到公开问题或放进发行包。整个 `data/`、`logs/` 及本机配置均应保留在本地；公开示例只使用虚构内容。
 
 请求无业务顺序保证：依赖操作必须等前一条成功并使用最新revision。只支持一条命令一个任务，无批量部分提交。软件关闭/休眠/正在编辑时会延迟。I/O错误保留请求待重试，health显示retrying状态；不清空队列和历史账本。应用恢复备份时须同时保存数据库、队列和回执，不能仅删除账本重新投递。
 
