@@ -48,6 +48,8 @@ class LocalTaskQueue:
         self.changed = changed
         self.lock = None
         self.in_tick = False
+        self.cloud_enabled = False
+        self.processed = 0
 
     def enabled(self):
         path = safe_path(self.root / 'config' / 'local_queue.json')
@@ -80,13 +82,14 @@ class LocalTaskQueue:
         })
 
     def tick(self):
+        self.processed = 0
         if self.in_tick:
             return
         self.in_tick = True
         changed = False
         try:
             if not self.enabled():
-                if self.lock is not None:
+                if self.lock is not None and not self.cloud_enabled:
                     self._health('disabled')
                     self.close()
                 return
@@ -100,7 +103,10 @@ class LocalTaskQueue:
             with os.scandir(self.directory / 'inbox') as entries:
                 pending = list(itertools.islice((Path(e.path) for e in entries if e.name.endswith('.json')), 4))
             for path in pending:
+                if self.busy():
+                    break
                 try:
+                    self.processed += 1
                     changed = self._consume(path) or changed
                 except (OSError, sqlite3.Error):
                     state = 'retrying_io'
@@ -116,6 +122,10 @@ class LocalTaskQueue:
             self.in_tick = False
             if changed:
                 self.changed()
+
+    def execute_cloud(self, delivery, voided=()):
+        from app.services.cloud_store import CloudStore
+        return CloudStore(self.repository).execute(delivery, voided)
 
     def _consume(self, path):
         try:
@@ -162,7 +172,10 @@ class LocalTaskQueue:
             result = self._apply(connection, payload)
             result.update(command_id=cid, payload_sha256=fingerprint,
                           processed_at=self.repository.clock().isoformat())
-            connection.execute('INSERT INTO local_queue_commands VALUES (?, ?, ?, ?)',
+            # Explicit column list: migration 5 added channel/actor/request columns.
+            connection.execute('''INSERT INTO local_queue_commands
+                    (command_id, payload_sha256, result_json, processed_at, channel)
+                    VALUES (?, ?, ?, ?, 'inbox')''',
                                (cid, fingerprint, encode(result).decode('utf-8'), result['processed_at']))
             return result
 
@@ -175,6 +188,9 @@ class LocalTaskQueue:
         if len(rows) > 1:
             return {'status': 'conflict', 'reason': 'ambiguous_source_reference', 'task_ids': [r['id'] for r in rows]}
         row = rows[0] if rows else None
+        if row is not None and row['deleted_at'] is not None:
+            # Soft-deleted (recycle bin): no reads, writes or re-creation via the inbox.
+            return {'status': 'protected', 'reason': 'task_deleted'}
         if operation == 'get':
             return {'status': 'found', **_task_result(row)} if row else {'status': 'not_found'}
         if ref in SUPPRESSED:

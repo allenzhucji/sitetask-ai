@@ -32,6 +32,21 @@ def main():
     args = parser.parse_args()
     bundle = args.bundle.resolve()
     internal = bundle / "_internal"
+    # Qt explicitly supports shipping only the native Windows TLS backend.
+    # Avoid loading a second OpenSSL ABI alongside CPython's ssl extension.
+    openssl_plugin = internal / 'PySide6/plugins/tls/qopensslbackend.dll'
+    native_plugin = internal / 'PySide6/plugins/tls/qschannelbackend.dll'
+    if not native_plugin.is_file():
+        raise RuntimeError('Native Windows TLS plugin is missing')
+    tls_moved = []
+    if openssl_plugin.exists():
+        if not args.repair:
+            raise RuntimeError('Qt OpenSSL plugin must be omitted from this Windows bundle; use --repair on the staged bundle')
+        tls_quarantine = bundle.parent / ('tls-quarantine-' + datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
+        tls_quarantine.mkdir(exist_ok=False)
+        tls_destination = tls_quarantine / openssl_plugin.name
+        shutil.move(str(openssl_plugin), str(tls_destination))
+        tls_moved.append(str(tls_destination))
     core = internal / "PySide6/Qt6Core.dll"
     required = imports_from(core, b"icuuc.dll")
     bundled = internal / "icuuc.dll"
@@ -64,7 +79,7 @@ def main():
     handles = [os.add_dll_directory(str(p)) for p in directories]
     loaded = [ctypes.WinDLL(str(core)), ctypes.WinDLL(str(internal / "PySide6/QtCore.pyd"))]
     assert handles and loaded
-    print(json.dumps({"result": "QtCore loader OK", "bundle": str(bundle), "quarantined": moved,
+    print(json.dumps({"result": "QtCore loader OK", "bundle": str(bundle), "quarantined": moved, "native_tls_only": True, "tls_quarantined": tls_moved,
                       "icu_required_exports": len(required)}, ensure_ascii=False))
 
 

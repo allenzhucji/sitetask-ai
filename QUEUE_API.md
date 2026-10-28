@@ -4,7 +4,7 @@
 
 ## 正式实例
 
-根目录：`C:\path\to\SiteTaskAI-windows-x64`
+根目录：`C:\Apps\SiteTaskAI`
 
 - 正式数据库：`data\sitetask.db`
 - 请求：`data\integration\inbox\<command_id>.json`
@@ -21,8 +21,8 @@
 ## 安全调用
 
 ```powershell
-$taskRoot = 'C:\path\to\SiteTaskAI-windows-x64'
-$taskPython = 'C:\path\to\sitetask-ai\.venv\Scripts\python.exe'
+$taskRoot = 'C:\Apps\SiteTaskAI'
+$taskPython = '.venv\Scripts\python.exe'
 $taskClient = Join-Path $taskRoot 'tools\task_queue.py'
 & $taskPython -B $taskClient --root $taskRoot health
 & $taskPython -B $taskClient --root $taskRoot read --source-reference 'PROJECT:T008'
@@ -48,7 +48,7 @@ UTF-8 JSON，最大32768字节；禁止重复键、未知字段及类型隐式�
   "source_reference": "PROJECT:stable-business-key",
   "fields": {
     "title": "确认检查安排",
-    "description": "要求：确认检查日期及结果。\n时间：申请时间待顾问确认。\n相关人员：工程师 / 监理。\n\n来源邮件：\nhttps://mail.google.com/mail/u/0/#all/example",
+    "description": "要求：确认检查日期及结果。\n时间：申请时间待顾问确认。\n相关人员：Example User / Example Reviewer。\n\n来源邮件：\nhttps://mail.google.com/mail/u/0/#all/example",
     "due_date": "2026-10-08",
     "no_due": false,
     "category": "IRF",
@@ -66,7 +66,7 @@ UTF-8 JSON，最大32768字节；禁止重复键、未知字段及类型隐式�
   "operation": "update",
   "source_reference": "PROJECT:stable-business-key",
   "expected_revision": "用read或get返回的64位revision替换",
-  "fields": {"description": "要求：新的已核实事项。\n时间：待确认。\n相关人员：工程师。"}
+  "fields": {"description": "要求：新的已核实事项。\n时间：待确认。\n相关人员：Example User。"}
 }
 ```
 

@@ -6,28 +6,28 @@
 ## About / 项目简介
 
 **English**
-I am a site engineer on an overseas commercial building project. Site work produces a constant stream of small, time-sensitive items: inspection requests, drawing queries, method statements, material approvals, meeting actions and reports. SiteTask AI is a lightweight Windows widget I built to capture and track them, so nothing slips.
+Site work produces a constant stream of small, time-sensitive items: inspection requests, drawing queries, method statements, material approvals, meeting actions and reports. SiteTask AI is a lightweight Windows widget I built to capture and track them, so nothing slips.
 
 I designed the features and workflow from my own site needs, and wrote the code together with AI tools (ChatGPT, Codex): describing requirements, reviewing generated code, testing and iterating.
 
 - **Stack:** Python 3.12, PySide6 (Qt), SQLite, Pydantic, PyInstaller (Windows .exe)
 - **Natural-language input:** "明天下午3点 检查 3F 钢筋" or "next Monday submit MS" is parsed locally into a dated task; low-confidence input can fall back to an AI API, always with a preview before saving
-- **Email-to-task sync with an AI assistant:** an AI assistant (Grok Bot/Dots) monitors my work mailbox, picks out actionable items (inspections, approvals, deadlines, meeting actions) and pushes them into SiteTask AI as new or updated tasks in near real time, with links back to the source email
+- **Email-to-task sync with an AI assistant:** an AI assistant (external assistant) can review an explicitly authorized mailbox, picks out actionable items (inspections, approvals, deadlines, meeting actions) and pushes them into SiteTask AI as new or updated tasks in near real time, with links back to the source email
 - **Local task queue:** the sync goes through an authorised JSON file queue with strict validation, de-duplication and completion protection, so the assistant never writes to the live database directly
 - **Cloud API:** Cloudflare, so assistants can add, update and delete tasks remotely and sync them to the desktop app
-- **Tests:** 289 automated tests (pytest), with all AI calls mocked
+- **Tests:** 372 automated tests (pytest), with all AI calls mocked
 
 **中文**
-我是海外商业综合体项目的现场工程师。现场每天有大量零碎但有时限的事项：验收申请、图纸疑问、施工方案、材料报审、会议行动项和报告。SiteTask AI 是我为此开发的 Windows 桌面小组件，用来随手记录、跟踪这些事项，避免遗漏。
+现场每天有大量零碎但有时限的事项：验收申请、图纸疑问、施工方案、材料报审、会议行动项和报告。SiteTask AI 是我为此开发的 Windows 桌面小组件，用来随手记录、跟踪这些事项，避免遗漏。
 
 功能和流程由我根据现场实际需求设计，代码借助 ChatGPT、Codex 等 AI 工具完成：我负责提出需求、审阅生成的代码、测试和迭代。
 
 - **技术栈：** Python 3.12、PySide6（Qt）、SQLite、Pydantic、PyInstaller 打包为 Windows exe
 - **自然语言录入：** 输入"明天下午3点 检查 3F 钢筋"即可在本地解析为带日期的任务；本地把握不大时可回退调用 API 接口，保存前均需预览确认
-- **邮件实时同步任务：** AI 助手（Grok Bot/Dots）实时监控工作邮箱，识别需要跟进的事项（验收、报审、截止日期、会议行动项等），自动在 SiteTask AI 中新增或更新任务，并附来源邮件链接
+- **邮件实时同步任务：** AI 助手（external assistant）在明确授权后读取邮箱，识别需要跟进的事项（验收、报审、截止日期、会议行动项等），可在 SiteTask AI 中新增或更新任务，并附来源邮件链接
 - **本地任务队列：** 同步通过经授权的 JSON 文件队列完成，带严格字段校验、去重和已完成任务保护，AI 助手不直接写入运行中的数据库
 - **云端接口：** Cloudflare，让 AI 助手可远程新增、更新、删除任务并同步到桌面程序
-- **测试：** 289 项自动化测试（pytest），AI 调用全部使用 mock
+- **测试：** 372 项自动化测试（pytest），AI 调用全部使用 mock
 
 > Sample data only. No real project data, credentials or personal information is included in this repository.
 > 仓库中不含任何真实项目数据、密钥或个人信息。
@@ -37,7 +37,7 @@ I designed the features and workflow from my own site needs, and wrote the code 
 
 SiteTask AI 是面向 Windows 10/11 的个人桌面任务 Widget，主要服务于 IRF、EFI、现场检查、图纸审核、Method Statement、材料审批、邮件、会议行动项和报告等工程现场事项。
 
-当前版本完成 V1、V1.5 和 V2。V3 及以后功能不在本版本范围内。
+当前版本包含回收站、数据库升级、可选云端桥接，以及 MCP / OAuth 接入。
 
 ## 核心规则
 
@@ -162,7 +162,7 @@ scripts\test.bat
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-当前测试结果：289 项通过、0 项失败。AI 测试不发送真实收费请求。
+当前测试结果：372 项通过、0 项失败。AI 测试不发送真实收费请求。
 
 ## 构建
 
@@ -181,8 +181,8 @@ scripts\clean.bat
 
 ## 隐私说明
 
-- 任务、设置和日志默认只保存在本机程序目录。
-- 本版本没有用户账户、云同步、在线数据库或后台服务器。
+- 默认使用本机 SQLite；启用云桥接后，任务镜像和操作请求会传输到你配置的 Cloudflare 服务。
+- 云端是命令队列和只读镜像；桌面数据库仍是权威来源。电脑离线时不能把排队状态当作修改成功。
 - 只有启用 AI 且本地解析置信度不足时，原始自然语言输入才会发送给配置的 OpenAI 服务。
 - API Key 由 Windows Credential Manager/keyring 保存，不保存在普通配置文件中。
 - 日志默认不记录完整任务文本，并对常见 API Key 格式脱敏。
@@ -202,14 +202,35 @@ scripts\clean.bat
 
 ## 未实施功能
 
-本版本没有 Gmail/Outlook 自动读取、邮件自动生成任务、会议录音或转录、云同步、多人协作、用户登录、手机或 Web App、团队权限、自动发邮件、附件、看板、甘特图、项目成本、后台服务器、WorkerW 桌面嵌入、多个 AI Provider，以及一次输入多个任务。
+本版本没有 Gmail/Outlook 自动读取、邮件自动生成任务、会议录音或转录、多人协作、手机或 Web App、团队权限、自动发邮件、附件、看板、甘特图、项目成本、WorkerW 桌面嵌入、多个 AI Provider，以及一次输入多个任务。
 
 ## 后续规划建议
 
 后续版本可在不改变三天显示规则的前提下考虑：数据库导入导出、更完善的睡眠恢复通知、应用内更新与代码签名、可配置本地解析词典，以及经明确授权的外部集成。V3 功能应继续按独立阶段设计和测试。
 
-详细结果见 `TEST_REPORT.md`、`BUILD_REPORT.md` 和 `FINAL_ACCEPTANCE_REPORT.md`。
+测试方法见 [docs/LOCAL-TESTING.md](docs/LOCAL-TESTING.md)。
 
 ## 本机授权任务队列（2026-10-06）
 
 现支持已授权流程在应用运行中通过本地JSON文件队列新增/更新关联任务。应用自身执行保存；外部CLI只写队列文件，不写运行中的SQLite。不开放端口或网络访问，默认未配置时关闭。协议、严格字段限制、去重/完成保护、冲突策略、读取当前状态及启停方式见[QUEUE_API.md](QUEUE_API.md)。
+
+## Cloud bridge and MCP / 云端桥接
+
+- Recycle bin, restore, schema migration and deletion-race protection.
+- Local-authoritative SQLite, versioned snapshots, durable outbox and recovery fencing.
+- Cloudflare D1 / Durable Objects authenticated command mailbox and task mirror.
+- Independent MCP Worker with OAuth, one-use pairing, scoped read/write access and command receipts.
+- Browser authorization fixes preserve origin checks and permit only the validated callback.
+
+桌面程序运行并联网后，会拉取 Dot/MCP 提交的命令，在本机校验并修改任务，再回传结果和镜像。
+MCP 管理的是任务记录，不会执行任务描述中的任意电脑操作。云端不提供永久删除。
+邮件读取或定时跟进由外部助手另行配置；本程序不会自行监控邮箱。
+
+Deployment: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+MCP setup: [docs/DOT-MCP.md](docs/DOT-MCP.md).
+Protocol: [docs/CLOUD-PROTOCOL-v1.3.md](docs/CLOUD-PROTOCOL-v1.3.md).
+
+Public examples use the synthetic `PROJECT:` namespace. Existing private installations
+using a different namespace must plan a compatible migration before adopting this source.
+Runtime databases, settings, logs, OAuth states, pairing codes and production configurations
+are excluded. Create your own deployment configuration from the example files.

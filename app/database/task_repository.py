@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Callable
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from app.database.connection import Database
 from app.database.migrations import apply_migrations
 from app.models.task import Priority, Task, TaskStatus, current_local_datetime
+
+
+# source_reference namespaces owned by an integration (one reference = one task).
+MANAGED_REFERENCE_PREFIXES = ("PROJECT:", "CLOUD:")
 
 
 class TaskRepository:
@@ -38,14 +42,15 @@ class TaskRepository:
             raise RuntimeError("Created task could not be loaded")
         return created
 
-    def get_task(self, task_id: int | None) -> Task | None:
+    def get_task(self, task_id: int | None, *, include_deleted: bool = False) -> Task | None:
+        """Return an active task; soft-deleted rows only when explicitly requested."""
         if task_id is None:
             return None
+        query = "SELECT * FROM tasks WHERE id = ?"
+        if not include_deleted:
+            query += " AND deleted_at IS NULL"
         with self.database.transaction() as connection:
-            row = connection.execute(
-                "SELECT * FROM tasks WHERE id = ?",
-                (task_id,),
-            ).fetchone()
+            row = connection.execute(query, (task_id,)).fetchone()
         return self._row_to_task(row)
 
     def update_task(self, task: Task) -> Task | None:
@@ -69,7 +74,7 @@ class TaskRepository:
                     category = ?, priority = ?, status = ?, source = ?,
                     source_reference = ?, no_due = ?, sort_order = ?,
                     updated_at = ?, completed_at = ?
-                WHERE id = ?
+                WHERE id = ? AND deleted_at IS NULL
                 """,
                 (
                     updated_task.title,
@@ -88,7 +93,7 @@ class TaskRepository:
                     updated_task.id,
                 ),
             )
-            if (
+            if cursor.rowcount and (
                 original.due_date != updated_task.due_date
                 or original.due_time != updated_task.due_time
                 or original.no_due != updated_task.no_due
@@ -110,6 +115,96 @@ class TaskRepository:
             cursor = connection.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
         return cursor.rowcount > 0
 
+    def soft_delete_task(self, task_id: int, deleted_by: str = "local-ui") -> Task | None:
+        """Move an active task into the recycle bin (recoverable)."""
+        if not isinstance(deleted_by, str) or not 1 <= len(deleted_by) <= 64:
+            raise ValueError("deleted_by must be a 1-64 character actor code")
+        timestamp = self.clock().isoformat()
+        with self.database.transaction() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE tasks
+                SET deleted_at = ?, deleted_by = ?, sort_order = NULL, updated_at = ?
+                WHERE id = ? AND deleted_at IS NULL
+                """,
+                (timestamp, deleted_by, timestamp, task_id),
+            )
+        if cursor.rowcount == 0:
+            return None
+        return self.get_task(task_id, include_deleted=True)
+
+    def undelete_task(self, task_id: int) -> Task | None:
+        """Restore a recycle-bin task (not the same as restore_task = reopen)."""
+        timestamp = self.clock().isoformat()
+        with self.database.transaction() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE tasks
+                SET deleted_at = NULL, deleted_by = NULL, updated_at = ?
+                WHERE id = ? AND deleted_at IS NOT NULL
+                """,
+                (timestamp, task_id),
+            )
+        if cursor.rowcount == 0:
+            return None
+        return self.get_task(task_id)
+
+    def list_deleted_tasks(self) -> list[Task]:
+        return self._fetch_tasks(
+            """
+            SELECT * FROM tasks
+            WHERE deleted_at IS NOT NULL
+            ORDER BY deleted_at DESC, id DESC
+            """
+        )
+
+    def purge_deleted_tasks(self, task_ids: list[int] | None = None) -> int:
+        """Permanently delete recycle-bin tasks in ONE transaction (all or nothing).
+
+        ``None`` empties the whole recycle bin. Active tasks are never purged;
+        the shared AFTER DELETE trigger writes content-free tombstones that keep
+        the task's original retention deadline.
+        """
+        with self.database.transaction() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if task_ids is None:
+                ids = [row[0] for row in connection.execute(
+                    "SELECT id FROM tasks WHERE deleted_at IS NOT NULL")]
+            else:
+                ids = list(dict.fromkeys(int(task_id) for task_id in task_ids))
+                if not ids:
+                    return 0
+                marks = ",".join("?" * len(ids))
+                found = {row[0] for row in connection.execute(
+                    f"SELECT id FROM tasks WHERE deleted_at IS NOT NULL AND id IN ({marks})", ids)}
+                if found != set(ids):
+                    raise ValueError("only tasks already in the recycle bin can be purged")
+            if not ids:
+                return 0
+            marks = ",".join("?" * len(ids))
+            # notification_log first: its foreign key to tasks is enforced.
+            connection.execute(f"DELETE FROM notification_log WHERE task_id IN ({marks})", ids)
+            cursor = connection.execute(
+                f"DELETE FROM tasks WHERE deleted_at IS NOT NULL AND id IN ({marks})", ids)
+            return cursor.rowcount
+
+    def purge_deleted_task(self, task_id: int) -> bool:
+        return self.purge_deleted_tasks([task_id]) == 1
+
+    def mark_expired_content(self, now: datetime | None = None) -> int:
+        """Record (not purge) that a non-active task's cloud-content deadline passed."""
+        stamp = (now or self.clock()).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        with self.database.transaction() as connection:
+            first = connection.execute(
+                """UPDATE task_lifecycle SET content_expired_at = ?
+                   WHERE content_expired_at IS NULL AND retention_deadline IS NOT NULL
+                     AND retention_deadline <= ?""", (stamp, stamp)).rowcount
+            second = connection.execute(
+                """UPDATE task_tombstones SET content_expired_at = ?
+                   WHERE content_expired_at IS NULL AND retention_deadline IS NOT NULL
+                     AND retention_deadline <= ?""", (stamp, stamp)).rowcount
+        return first + second
+
     def complete_task(self, task_id: int) -> Task | None:
         completed_at = self.clock()
         with self.database.transaction() as connection:
@@ -117,7 +212,7 @@ class TaskRepository:
                 """
                 UPDATE tasks
                 SET status = ?, completed_at = ?, updated_at = ?
-                WHERE id = ?
+                WHERE id = ? AND deleted_at IS NULL
                 """,
                 (
                     TaskStatus.COMPLETED,
@@ -137,7 +232,7 @@ class TaskRepository:
                 """
                 UPDATE tasks
                 SET status = ?, completed_at = NULL, updated_at = ?
-                WHERE id = ?
+                WHERE id = ? AND deleted_at IS NULL
                 """,
                 (TaskStatus.PENDING, updated_at.isoformat(), task_id),
             )
@@ -151,9 +246,15 @@ class TaskRepository:
             return None
 
         now = self.clock()
+        # A copy is a new identity: managed references (mail inbox / cloud) stay
+        # with the original so they keep resolving to exactly one task.
+        reference = original.source_reference
+        if reference and reference.startswith(MANAGED_REFERENCE_PREFIXES):
+            reference = None
         duplicate = original.model_copy(
             update={
                 "id": None,
+                "source_reference": reference,
                 "title": f"{original.title} (Copy)",
                 "status": TaskStatus.PENDING,
                 "sort_order": None,
@@ -170,7 +271,7 @@ class TaskRepository:
             """
             SELECT *
             FROM tasks
-            WHERE status = ?
+            WHERE status = ? AND deleted_at IS NULL
               AND (
                 no_due = 1
                 OR due_date < ?
@@ -205,7 +306,7 @@ class TaskRepository:
         return self._fetch_tasks(
             """
             SELECT * FROM tasks
-            WHERE status = ? AND no_due = 0 AND due_date >= ?
+            WHERE status = ? AND deleted_at IS NULL AND no_due = 0 AND due_date >= ?
             ORDER BY due_date ASC,
                      CASE WHEN due_time IS NULL THEN 1 ELSE 0 END,
                      due_time ASC,
@@ -223,7 +324,7 @@ class TaskRepository:
         return self._fetch_tasks(
             """
             SELECT * FROM tasks
-            WHERE status = ? AND no_due = 0 AND due_date BETWEEN ? AND ?
+            WHERE status = ? AND deleted_at IS NULL AND no_due = 0 AND due_date BETWEEN ? AND ?
             ORDER BY due_date ASC,
                      CASE WHEN due_time IS NULL THEN 1 ELSE 0 END,
                      due_time ASC,
@@ -237,7 +338,7 @@ class TaskRepository:
         return self._fetch_tasks(
             """
             SELECT * FROM tasks
-            WHERE status = ? AND no_due = 0 AND due_date > ?
+            WHERE status = ? AND deleted_at IS NULL AND no_due = 0 AND due_date > ?
             ORDER BY due_date ASC,
                      CASE WHEN due_time IS NULL THEN 1 ELSE 0 END,
                      due_time ASC
@@ -249,7 +350,7 @@ class TaskRepository:
         return self._fetch_tasks(
             """
             SELECT * FROM tasks
-            WHERE status = ? AND no_due = 0 AND due_date < ?
+            WHERE status = ? AND deleted_at IS NULL AND no_due = 0 AND due_date < ?
             ORDER BY due_date ASC,
                      CASE WHEN due_time IS NULL THEN 1 ELSE 0 END,
                      due_time ASC
@@ -262,7 +363,7 @@ class TaskRepository:
         return self._fetch_tasks(
             """
             SELECT * FROM tasks
-            WHERE status = ? AND (no_due = 1 OR due_date < ?)
+            WHERE status = ? AND deleted_at IS NULL AND (no_due = 1 OR due_date < ?)
             ORDER BY
               CASE WHEN sort_order IS NULL THEN 1 ELSE 0 END,
               sort_order ASC,
@@ -282,7 +383,7 @@ class TaskRepository:
         return self._fetch_tasks(
             """
             SELECT * FROM tasks
-            WHERE status = ?
+            WHERE status = ? AND deleted_at IS NULL
             ORDER BY completed_at DESC, due_date DESC, created_at DESC
             """,
             (TaskStatus.COMPLETED,),
@@ -292,6 +393,7 @@ class TaskRepository:
         return self._fetch_tasks(
             """
             SELECT * FROM tasks
+            WHERE deleted_at IS NULL
             ORDER BY no_due DESC,
                      due_date ASC,
                      CASE WHEN due_time IS NULL THEN 1 ELSE 0 END,
@@ -305,7 +407,7 @@ class TaskRepository:
         return self._count_tasks(
             """
             SELECT COUNT(*) FROM tasks
-            WHERE status = ?
+            WHERE status = ? AND deleted_at IS NULL
               AND (
                 no_due = 1
                 OR due_date < ?
@@ -323,22 +425,28 @@ class TaskRepository:
     def count_later_tasks(self, today: date, days_ahead: int = 3) -> int:
         visible_end_date = self._visible_end_date(today, days_ahead)
         return self._count_tasks(
-            "SELECT COUNT(*) FROM tasks WHERE status = ? AND no_due = 0 AND due_date > ?",
+            "SELECT COUNT(*) FROM tasks WHERE status = ? AND deleted_at IS NULL "
+            "AND no_due = 0 AND due_date > ?",
             (TaskStatus.PENDING, visible_end_date.isoformat()),
         )
 
-    def search_tasks(self, query: str) -> list[Task]:
+    def search_tasks(self, query: str, *, deleted: bool = False) -> list[Task]:
+        """Search active tasks, or only the recycle bin when ``deleted`` is true."""
         term = query.strip()
         if not term:
-            return self.list_all_tasks()
+            return self.list_deleted_tasks() if deleted else self.list_all_tasks()
 
         pattern = f"%{self._escape_like(term)}%"
+        lifecycle = "deleted_at IS NOT NULL" if deleted else "deleted_at IS NULL"
         return self._fetch_tasks(
-            """
+            f"""
             SELECT * FROM tasks
-            WHERE title LIKE ? ESCAPE '\\'
-               OR COALESCE(description, '') LIKE ? ESCAPE '\\'
-               OR COALESCE(source_reference, '') LIKE ? ESCAPE '\\'
+            WHERE {lifecycle}
+              AND (
+                title LIKE ? ESCAPE '\\'
+                OR COALESCE(description, '') LIKE ? ESCAPE '\\'
+                OR COALESCE(source_reference, '') LIKE ? ESCAPE '\\'
+              )
             ORDER BY no_due DESC,
                      due_date ASC,
                      CASE WHEN due_time IS NULL THEN 1 ELSE 0 END,
@@ -357,6 +465,7 @@ class TaskRepository:
             """
             SELECT * FROM tasks
             WHERE status = ?
+              AND deleted_at IS NULL
               AND no_due = 0
               AND due_time IS NOT NULL
               AND due_date BETWEEN ? AND ?
@@ -442,10 +551,11 @@ class TaskRepository:
         if not ordered_task_ids:
             raise ValueError("ordered_task_ids must not be empty")
         with self.database.transaction() as connection:
+            connection.execute("BEGIN IMMEDIATE")
             rows = connection.execute(
                 """
                 SELECT id FROM tasks
-                WHERE due_date = ? AND no_due = 0 AND status = ?
+                WHERE due_date = ? AND no_due = 0 AND status = ? AND deleted_at IS NULL
                 """,
                 (due_date.isoformat(), TaskStatus.PENDING),
             ).fetchall()
@@ -462,17 +572,21 @@ class TaskRepository:
             now = self.clock()
             timestamp = now.isoformat()
             for index, task_id in enumerate(ordered_task_ids):
-                connection.execute(
-                    "UPDATE tasks SET sort_order = ?, updated_at = ? WHERE id = ?",
+                cursor = connection.execute(
+                    "UPDATE tasks SET sort_order = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL AND status = 'pending'",
                     (index, timestamp, task_id),
                 )
+                if cursor.rowcount != 1:
+                    raise ValueError("Pending task changed during reorder")
             if make_first_urgent:
-                connection.execute(
-                    "UPDATE tasks SET priority = ?, updated_at = ? WHERE id = ?",
+                cursor = connection.execute(
+                    "UPDATE tasks SET priority = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL AND status = 'pending'",
                     (Priority.URGENT, timestamp, ordered_task_ids[0]),
                 )
+                if cursor.rowcount != 1:
+                    raise ValueError("Pending task changed during reorder")
+            tasks = [self._row_to_task(connection.execute("SELECT * FROM tasks WHERE id=?", (item,)).fetchone()) for item in ordered_task_ids]
 
-        tasks = [self.get_task(task_id) for task_id in ordered_task_ids]
         if any(task is None for task in tasks):
             raise RuntimeError("Reordered task could not be loaded")
         return [task for task in tasks if task is not None]
@@ -492,8 +606,9 @@ class TaskRepository:
         if target_due_date is None and today is None:
             raise ValueError("today is required when moving a task to NO DUE")
         with self.database.transaction() as connection:
+            connection.execute("BEGIN IMMEDIATE")
             moving_task = connection.execute(
-                "SELECT due_date, no_due, status FROM tasks WHERE id = ?",
+                "SELECT due_date, no_due, status FROM tasks WHERE id = ? AND deleted_at IS NULL",
                 (task_id,),
             ).fetchone()
             if moving_task is None or moving_task["status"] != TaskStatus.PENDING:
@@ -506,7 +621,7 @@ class TaskRepository:
                 target_rows = connection.execute(
                     """
                     SELECT id FROM tasks
-                    WHERE status = ? AND (no_due = 1 OR due_date < ?)
+                    WHERE status = ? AND deleted_at IS NULL AND (no_due = 1 OR due_date < ?)
                     """,
                     (TaskStatus.PENDING, today.isoformat()),
                 ).fetchall()
@@ -515,7 +630,7 @@ class TaskRepository:
                 target_rows = connection.execute(
                     """
                     SELECT id FROM tasks
-                    WHERE status = ? AND no_due = 0 AND due_date = ?
+                    WHERE status = ? AND deleted_at IS NULL AND no_due = 0 AND due_date = ?
                     """,
                     (TaskStatus.PENDING, target_due_date.isoformat()),
                 ).fetchall()
@@ -538,45 +653,53 @@ class TaskRepository:
 
             timestamp = self.clock().isoformat()
             if target_due_date is None:
-                connection.execute(
+                cursor = connection.execute(
                     """
                     UPDATE tasks
                     SET no_due = 1, due_time = NULL, sort_order = NULL,
                         updated_at = ?
-                    WHERE id = ?
+                    WHERE id = ? AND deleted_at IS NULL AND status = 'pending'
                     """,
                     (timestamp, task_id),
                 )
+                if cursor.rowcount != 1:
+                    raise ValueError("Pending task changed during move")
                 connection.execute(
                     "DELETE FROM notification_log WHERE task_id = ?",
                     (task_id,),
                 )
             elif source_no_due or source_due_date != target_due_date:
-                connection.execute(
+                cursor = connection.execute(
                     """
                     UPDATE tasks SET due_date = ?, no_due = 0,
                         sort_order = NULL, updated_at = ?
-                    WHERE id = ?
+                    WHERE id = ? AND deleted_at IS NULL AND status = 'pending'
                     """,
                     (target_due_date.isoformat(), timestamp, task_id),
                 )
+                if cursor.rowcount != 1:
+                    raise ValueError("Pending task changed during move")
                 connection.execute(
                     "DELETE FROM notification_log WHERE task_id = ?",
                     (task_id,),
                 )
 
             for index, ordered_task_id in enumerate(target_ordered_task_ids):
-                connection.execute(
-                    "UPDATE tasks SET sort_order = ?, updated_at = ? WHERE id = ?",
+                cursor = connection.execute(
+                    "UPDATE tasks SET sort_order = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL AND status = 'pending'",
                     (index, timestamp, ordered_task_id),
                 )
+                if cursor.rowcount != 1:
+                    raise ValueError("Pending task changed during move")
             if make_first_urgent:
-                connection.execute(
-                    "UPDATE tasks SET priority = ?, updated_at = ? WHERE id = ?",
+                cursor = connection.execute(
+                    "UPDATE tasks SET priority = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL AND status = 'pending'",
                     (Priority.URGENT, timestamp, target_ordered_task_ids[0]),
                 )
+                if cursor.rowcount != 1:
+                    raise ValueError("Pending task changed during move")
+            tasks = [self._row_to_task(connection.execute("SELECT * FROM tasks WHERE id=?", (item,)).fetchone()) for item in target_ordered_task_ids]
 
-        tasks = [self.get_task(item_id) for item_id in target_ordered_task_ids]
         if any(task is None for task in tasks):
             raise RuntimeError("Moved task could not be loaded")
         return [task for task in tasks if task is not None]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from datetime import date, datetime, timedelta
 
@@ -40,7 +41,9 @@ from app.models.task import (
     current_local_datetime,
 )
 from app.services.settings_service import SettingsService
+from app.services.local_identity import IdentityStatus, LocalIdentityService
 from app.services.local_queue import LocalTaskQueue
+from app.services.cloud_bridge import CloudBridgeController
 from app.services.local_task_parser import LocalTaskParser
 from app.services.ai_task_parser import OpenAITaskParser
 from app.services.credential_service import CredentialService
@@ -233,15 +236,33 @@ class MainWidget(QWidget):
         self.completion_refresh_timer.timeout.connect(self.refresh_tasks)
         self.last_completed_task_id: int | None = None
 
+        self.identity_check = self._check_local_identity()
+
         self.local_queue = LocalTaskQueue(
             self.repository, self.settings_service.paths.root,
             busy=self._queue_interaction_busy, changed=self._queue_refresh,
         )
         self.local_queue_timer = QTimer(self)
         self.local_queue_timer.setInterval(1000)
-        self.local_queue_timer.timeout.connect(self.local_queue.tick)
+        self.cloud_bridge = CloudBridgeController(self.repository, self.settings_service.paths, self.local_queue, self)
+        self.cloud_bridge.startup()
+        self.local_queue_timer.timeout.connect(self.cloud_bridge.cycle)
+        application = QApplication.instance()
+        if application is not None:
+            application.aboutToQuit.connect(self.cloud_bridge.stop)
         self.local_queue_timer.start()
         self.destroyed.connect(lambda queue=self.local_queue: queue.close())
+
+    def _check_local_identity(self):
+        try:
+            service = LocalIdentityService(self.settings_service.paths, self.repository.database)
+            result = service.record()
+            if result.status not in (IdentityStatus.NEW, IdentityStatus.PAIRED):
+                logging.getLogger("sitetask").warning("Local database identity: %s", result.status)
+            return result
+        except Exception:
+            logging.getLogger("sitetask").warning("Local identity check failed", exc_info=True)
+            return None
 
     def _queue_interaction_busy(self) -> bool:
         return bool(
@@ -593,6 +614,8 @@ class MainWidget(QWidget):
             self.all_tasks_dialog.complete_requested.connect(self._complete_task)
             self.all_tasks_dialog.restore_requested.connect(self._restore_task)
             self.all_tasks_dialog.delete_requested.connect(self._delete_task)
+            self.all_tasks_dialog.undelete_requested.connect(self._undelete_task)
+            self.all_tasks_dialog.purge_requested.connect(self._purge_deleted_tasks)
         self.all_tasks_dialog.refresh()
         self.all_tasks_dialog.show()
         self.all_tasks_dialog.raise_()
@@ -724,6 +747,10 @@ class MainWidget(QWidget):
             self.show_from_tray()
 
     def exit_application(self) -> None:
+        self.cloud_bridge.stop()
+        if self.cloud_bridge.thread and self.cloud_bridge.thread.isRunning():
+            return
+        self.local_queue.close()
         self._force_exit = True
         if self.all_tasks_dialog is not None:
             self.all_tasks_dialog.close()
@@ -776,6 +803,31 @@ class MainWidget(QWidget):
         if answer == QMessageBox.StandardButton.Yes:
             self.repository.delete_task(task_id)
             self.refresh_tasks()
+
+    def _undelete_task(self, task_id: int) -> None:
+        if self.repository.undelete_task(task_id) is not None:
+            self.refresh_tasks()
+
+    def _purge_deleted_tasks(self, task_ids: list[int]) -> None:
+        """Permanent, local-only deletion from the recycle bin (never cloud-reachable)."""
+        task_ids = [int(task_id) for task_id in task_ids]
+        if not task_ids:
+            return
+        noun = "task" if len(task_ids) == 1 else f"{len(task_ids)} tasks"
+        answer = QMessageBox.warning(
+            self,
+            "Delete Permanently",
+            f"Permanently delete {noun} from the Recycle Bin?\n\nThis cannot be undone.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.repository.purge_deleted_tasks(task_ids)
+        except ValueError:
+            QMessageBox.warning(self, "Delete Permanently", "Only Recycle Bin tasks can be purged.")
+        self.refresh_tasks()
 
     def _add_quick_task(self, title_text: str, date_text: str, time_text: str) -> None:
         try:

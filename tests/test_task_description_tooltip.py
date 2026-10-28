@@ -191,7 +191,7 @@ def test_all_tasks_row_uses_selectable_popup_and_long_description_scrolls(qtbot,
 
 
 def test_header_buttons_align_and_sources_are_compact_but_copy_keeps_full_text(qtbot):
-    body = "跟进：等待顾问回复。\n时间：申请10月5日09:00，尚待确认。\n备注：本人无需到场。"
+    body = "跟进：等待顾问回复。\n时间：申请10月5日09:00，尚待确认。\n备注：Example User无需到场。"
     url = "https://mail.google.com/mail/u/?authuser=example%40gmail.com#all/123"
     description = body + "\n\n来源邮件：\n" + url
     item = TaskItem(Task(id=57, title="IRF103检查申请", due_date=TODAY, description=description), TODAY)

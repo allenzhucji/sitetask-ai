@@ -171,7 +171,7 @@ def test_openai_parser_uses_structured_response_and_runtime_context():
         "On 1 October renew the site access permit",
         api_key="sk-test-secret",
         model="test-structured-model",
-        now=datetime(2026, 7, 17, 14, 30, tzinfo=ZoneInfo("Indian/Mauritius")),
+        now=datetime(2026, 7, 17, 14, 30, tzinfo=ZoneInfo("Asia/Dubai")),
         default_due_time="17:00",
         apply_default_time=True,
     )
@@ -186,7 +186,7 @@ def test_openai_parser_uses_structured_response_and_runtime_context():
     context = call["input"][1]["content"]
     assert "Current local date: 2026-07-17" in context
     assert "Current local time: 14:30:00" in context
-    assert "System timezone: Indian/Mauritius" in context
+    assert "System timezone: Asia/Dubai" in context
     assert "Allowed categories: Site Inspection, IRF, EFI" in context
     assert "Apply default due time: true" in context
     assert "Default due time: 17:00" in context
@@ -211,7 +211,7 @@ def test_openai_parser_handles_missing_structured_output_safely():
             "private site task text",
             api_key="sk-private-key",
             model="test-model",
-            now=datetime(2026, 7, 17, tzinfo=ZoneInfo("Indian/Mauritius")),
+            now=datetime(2026, 7, 17, tzinfo=ZoneInfo("Asia/Dubai")),
             default_due_time="17:00",
             apply_default_time=True,
         )
@@ -226,7 +226,7 @@ def test_openai_parser_does_not_create_client_without_configuration():
     parser = OpenAITaskParser(
         client_factory=lambda **kwargs: calls.append(kwargs)
     )
-    now = datetime(2026, 7, 17, tzinfo=ZoneInfo("Indian/Mauritius"))
+    now = datetime(2026, 7, 17, tzinfo=ZoneInfo("Asia/Dubai"))
 
     with pytest.raises(AIParseError):
         parser.parse(

@@ -1,0 +1,26 @@
+name = "sitetask-dot"
+main = "src/mcp/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+workers_dev = true
+[observability]
+enabled = false
+[vars]
+ORIGIN = "https://your-mcp-worker.example.com"
+BRIDGE_ORIGIN = "https://your-bridge-worker.example.com"
+DATABASE_ID = "00000000-0000-0000-0000-000000000000"
+[[d1_databases]]
+binding = "DB"
+database_name = "sitetask-cloud-bridge"
+database_id = "00000000-0000-0000-0000-000000000000"
+[[kv_namespaces]]
+binding = "OAUTH_KV"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+[[ratelimits]]
+name = "AUTH_LIMITER"
+namespace_id = "1001"
+simple = { limit = 60, period = 60 }
+[[services]]
+binding = "BRIDGE"
+service = "sitetask-cloud-bridge"

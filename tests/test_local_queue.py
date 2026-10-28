@@ -111,7 +111,12 @@ def test_legacy_task_update_requires_current_revision_and_duplicate_refs_conflic
     snapshot = read_tasks(root)[0]
     updated = queue.execute(command('update', expected_revision=snapshot['revision'], fields={'description': 'Concise'}))
     assert updated['status'] == 'updated'
-    repo.duplicate_task(task.id)
+    # Duplicating no longer copies a managed reference (one reference = one task) ...
+    copy = repo.duplicate_task(task.id)
+    assert copy.source_reference is None
+    assert queue.execute(command())['reason'] == 'source_reference_exists_no_changes'
+    # ... but legacy data can still hold two rows with the same reference: stay ambiguous.
+    repo.create_task(Task(title='Legacy twin', due_date='2026-10-06', source_reference='PROJECT:TEST-1'))
     assert queue.execute(command())['reason'] == 'ambiguous_source_reference'
 
 
@@ -247,16 +252,23 @@ def test_upgrade_seeds_revisions_and_does_not_change_tasks(tmp_path, monkeypatch
     all_migrations = migrations.MIGRATIONS
     monkeypatch.setattr(migrations, 'MIGRATIONS', all_migrations[:3])
     database = Database(tmp_path / 'data/sitetask.db')
-    repo = TaskRepository(database, clock=lambda: NOW)
-    task = repo.create_task(Task(title='Existing completed', due_date='2026-10-06', status='completed', source_reference='PROJECT:LEGACY'))
+    migrations.apply_migrations(database)
+    # Schema-3 rows are written raw: current repository code requires schema 5.
+    with database.transaction() as connection:
+        task_id = connection.execute('''INSERT INTO tasks (title, due_date, status, source_reference, created_at, updated_at)
+            VALUES ('Existing completed', '2026-10-06', 'completed', 'PROJECT:LEGACY', ?, ?)''',
+            (NOW.isoformat(), NOW.isoformat())).lastrowid
     before = read_tasks(tmp_path)
-    monkeypatch.setattr(migrations, 'MIGRATIONS', all_migrations)
+    monkeypatch.setattr(migrations, 'MIGRATIONS', all_migrations[:4])
     assert migrations.apply_migrations(database) == (4,)
     assert read_tasks(tmp_path) == before
     with database.transaction() as connection:
         tracked = connection.execute('SELECT * FROM local_queue_sources').fetchone()
     assert tracked['last_revision'] == before[0]['revision']
-    repo.delete_task(task.id)
+    monkeypatch.setattr(migrations, 'MIGRATIONS', all_migrations)
+    assert migrations.apply_migrations(database) == (5, 6)
+    repo = TaskRepository(database, clock=lambda: NOW)
+    repo.delete_task(task_id)
     queue = LocalTaskQueue(repo, tmp_path)
     assert queue.execute(command(ref='PROJECT:LEGACY'))['status'] == 'protected'
 
@@ -274,7 +286,7 @@ def test_interrupted_migration_rolls_back_schema_and_retries(tmp_path, monkeypat
     with database.transaction() as connection:
         assert connection.execute("SELECT name FROM sqlite_master WHERE name='local_queue_commands'").fetchone() is None
     monkeypatch.setattr(migrations, 'MIGRATIONS', all_migrations)
-    assert migrations.apply_migrations(database) == (4,)
+    assert migrations.apply_migrations(database) == (4, 5, 6)
 
 
 def test_running_ui_consumes_and_refreshes_pauses_for_editor_and_preserves_user_save(qtbot, setup):

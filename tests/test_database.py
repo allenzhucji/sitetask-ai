@@ -39,7 +39,7 @@ def test_first_migration_creates_database_schema(tmp_path):
     paths = AppPaths(tmp_path)
     database = Database(paths.database_file)
 
-    assert apply_migrations(database) == (1, 2, 3, 4)
+    assert apply_migrations(database) == (1, 2, 3, 4, 5, 6)
 
     with database.transaction() as connection:
         tables = {
@@ -62,7 +62,7 @@ def test_first_migration_creates_database_schema(tmp_path):
         }
 
     assert paths.database_file.exists()
-    assert {"tasks", "notification_log", "schema_migrations"} <= tables
+    assert {"tasks", "notification_log", "schema_migrations_v5"} <= tables
     assert {
         "idx_tasks_due_date",
         "idx_tasks_status",
@@ -77,15 +77,15 @@ def test_first_migration_creates_database_schema(tmp_path):
 def test_migrations_can_run_repeatedly(tmp_path):
     database = Database(tmp_path / "data" / "sitetask.db")
 
-    assert apply_migrations(database) == (1, 2, 3, 4)
+    assert apply_migrations(database) == (1, 2, 3, 4, 5, 6)
     assert apply_migrations(database) == ()
 
     with database.transaction() as connection:
         migration_count = connection.execute(
-            "SELECT COUNT(*) FROM schema_migrations"
+            "SELECT COUNT(*) FROM schema_migrations_v5"
         ).fetchone()[0]
 
-    assert migration_count == 4
+    assert migration_count == 6
 
 
 def test_transaction_closes_connection(tmp_path):

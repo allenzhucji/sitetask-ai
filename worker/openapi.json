@@ -1,0 +1,32 @@
+{
+  "openapi": "3.1.0",
+  "info": {"title":"Site Task AI assistant API","version":"1.3.0","description":"Authenticated command mailbox. SQLite on the user's computer is authoritative. Configure the server URL and bearer secret only after approved deployment. Commands are asynchronous; poll their status. Cloud deletion is recoverable soft deletion only."},
+  "servers": [{"url":"https://configure-before-use.example.com"}],
+  "security": [{"bearerAuth":[]}],
+  "components": {
+    "securitySchemes": {"bearerAuth":{"type":"http","scheme":"bearer"}},
+    "schemas": {
+      "Command": {
+        "type":"object","additionalProperties":false,
+        "required":["v","command_id","op","target","base_revision","fields","reason"],
+        "properties": {
+          "v":{"type":"integer","const":1},
+          "command_id":{"type":"string","format":"uuid","description":"A new lowercase canonical UUID for each intended operation. Retry the same immutable request with the same UUID."},
+          "op":{"type":"string","enum":["create","update","complete","reopen","soft_delete","restore","get"]},
+          "target":{"oneOf":[{"type":"null"},{"type":"object","additionalProperties":false,"required":["task_id"],"properties":{"task_id":{"type":"integer","minimum":1}}},{"type":"object","additionalProperties":false,"required":["source_reference"],"properties":{"source_reference":{"type":"string","description":"CLOUD:<uuid> or an existing PROJECT reference"}}}]},
+          "base_revision":{"type":["string","null"],"description":"Current business_revision for every write except create. Null for get/create."},
+          "fields":{"type":["object","null"],"additionalProperties":false,"properties":{"title":{"type":"string","maxLength":200},"description":{"type":"string","maxLength":6000},"due_date":{"type":["string","null"],"description":"YYYY-MM-DD; null with no_due=true"},"no_due":{"type":"boolean"},"category":{"type":"string","enum":["Site Inspection","IRF","EFI","Drawing","Method Statement","Material","Email","Meeting","Report","Follow-up","Personal","Other"]},"priority":{"type":"string","enum":["low","normal","high","urgent"]}},"description":"All six fields for create; nonempty subset for update. due_date and no_due must be supplied together. Null for other operations."},
+          "reason":{"type":["string","null"],"maxLength":200}
+        }
+      }
+    }
+  },
+  "paths": {
+    "/v1/commands": {"post":{"operationId":"submitTaskCommand","summary":"Submit an asynchronous task command","requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Command"}}}},"responses":{"202":{"description":"Queued; not proof of execution"},"200":{"description":"Same owner and immutable request already accepted"},"409":{"description":"Conflict; do not silently overwrite or change command contents"}}}},
+    "/v1/commands/{id}": {"get":{"operationId":"getTaskCommandStatus","summary":"Read the submitting credential's command status and receipt","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}],"responses":{"200":{"description":"Current status and optional receipt"},"404":{"description":"Not found or not owned"}}}},
+    "/v1/commands/{id}/cancel": {"post":{"operationId":"cancelQueuedTaskCommand","summary":"Cancel an unleased command owned by this credential","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}],"responses":{"200":{"description":"Cancelled"},"409":{"description":"Already leased or finalized; too late to cancel"}}}},
+    "/v1/tasks": {"get":{"operationId":"listTaskMirror","summary":"Read a paginated non-authoritative task mirror","parameters":[{"name":"include_deleted","in":"query","schema":{"type":"boolean","default":false}},{"name":"after","in":"query","schema":{"type":"integer","minimum":0}}],"responses":{"200":{"description":"items, authoritative=false and next_after; null cursor means no next page"}}}},
+    "/v1/tasks/{id}": {"get":{"operationId":"getTaskMirror","summary":"Read a non-authoritative mirror identity; use get command for a live local read","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"integer","minimum":1}},{"name":"include_deleted","in":"query","schema":{"type":"boolean","default":false}}],"responses":{"200":{"description":"items; may be metadata-only when content expired"}}}},
+    "/v1/health": {"get":{"operationId":"getTaskBridgeHealth","summary":"Read connection freshness and pending command count","responses":{"200":{"description":"last_seen_at, fenced, queued and identity watermarks"}}}}
+  }
+}

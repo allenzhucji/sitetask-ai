@@ -13,7 +13,7 @@ from app.services.notification_service import (
 )
 
 
-ZONE = ZoneInfo("Indian/Mauritius")
+ZONE = ZoneInfo("Asia/Dubai")
 
 
 class MutableClock:

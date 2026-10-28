@@ -62,6 +62,14 @@ class Task(BaseModel):
     sort_order: int | None = Field(default=None, ge=0)
     updated_at: datetime = Field(default_factory=current_local_datetime)
     completed_at: datetime | None = None
+    # Soft delete (migration 5). Never written by create/update; use the
+    # repository's soft_delete_task / undelete_task instead.
+    deleted_at: datetime | None = None
+    deleted_by: str | None = None
+
+    @property
+    def is_deleted(self) -> bool:
+        return self.deleted_at is not None
 
     @field_validator("title")
     @classmethod

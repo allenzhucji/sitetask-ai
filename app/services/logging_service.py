@@ -17,6 +17,9 @@ BACKUP_COUNT = 3
 
 class RedactingFormatter(logging.Formatter):
     _patterns = (
+        re.compile(r"\bst[kb]_[A-Za-z0-9_-]{8,}"),
+        re.compile(r"(?i)authorization\s*[:=]\s*\S+(?:\s+\S+)?"),
+        re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]+"),
         re.compile(r"(?i)(OPENAI_API_KEY\s*[=:]\s*)\S+"),
         re.compile(r"(?i)(api[_ -]?key\s*[=:]\s*)\S+"),
         re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9_-]{8,}\b"),

@@ -27,3 +27,25 @@ dist/
 .vscode/
 Thumbs.db
 Desktop.ini
+
+# Private runtime and deployment material
+/config/*
+!/config/*.example.json
+/data/
+/logs/
+/backups/
+/outputs/
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+PEPPER.txt
+provision.sql
+seed.sql
+worker/node_modules/
+worker/.wrangler/
+worker/.dev.vars*
+worker/wrangler.production.toml
+worker/wrangler.mcp.toml
+worker/wrangler.mcp.local.toml

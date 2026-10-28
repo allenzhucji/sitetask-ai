@@ -139,6 +139,11 @@ class SettingsDialog(QDialog):
 
         layout = QVBoxLayout(self)
         layout.addLayout(form)
+        if parent is not None and hasattr(parent, 'cloud_bridge'):
+            from app.ui.cloud_settings_dialog import CloudSettingsDialog
+            cloud_button = QPushButton('Cloud bridge…')
+            cloud_button.clicked.connect(lambda: CloudSettingsDialog(parent.cloud_bridge, self).exec())
+            layout.addWidget(cloud_button)
         layout.addWidget(self.button_box)
 
     def _update_opacity_label(self) -> None:

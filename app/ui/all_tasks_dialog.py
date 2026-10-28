@@ -28,7 +28,10 @@ class AllTasksDialog(QDialog):
     complete_requested = Signal(int)
     restore_requested = Signal(int)
     delete_requested = Signal(int)
+    undelete_requested = Signal(int)
+    purge_requested = Signal(list)
 
+    RECYCLE_BIN = "Recycle Bin"
     FILTERS = (
         "Upcoming",
         "Next 3 Days",
@@ -36,6 +39,7 @@ class AllTasksDialog(QDialog):
         "No Due",
         "Completed",
         "All",
+        RECYCLE_BIN,
     )
     HEADERS = ("Title", "Due Date", "Due Time", "Category", "Priority", "Status")
 
@@ -106,12 +110,17 @@ class AllTasksDialog(QDialog):
         self.delete_button = QPushButton("Delete")
         self.delete_button.setObjectName("allTasksDeleteButton")
         self.delete_button.clicked.connect(self._emit_delete)
+        self.empty_bin_button = QPushButton("Empty Recycle Bin")
+        self.empty_bin_button.setObjectName("allTasksEmptyBinButton")
+        self.empty_bin_button.clicked.connect(self._emit_empty_bin)
+        self.empty_bin_button.hide()
 
         action_layout = QHBoxLayout()
         action_layout.addStretch(1)
         action_layout.addWidget(self.edit_button)
         action_layout.addWidget(self.status_button)
         action_layout.addWidget(self.delete_button)
+        action_layout.addWidget(self.empty_bin_button)
 
         layout = QVBoxLayout(self)
         layout.addLayout(filter_layout)
@@ -123,6 +132,10 @@ class AllTasksDialog(QDialog):
     @property
     def selected_filter(self) -> str:
         return self.filter_combo.currentText()
+
+    @property
+    def in_recycle_bin(self) -> bool:
+        return self.selected_filter == self.RECYCLE_BIN
 
     def _hover_task(self, _target, event):
         row = self.table.indexAt(event.pos()).row()
@@ -154,13 +167,17 @@ class AllTasksDialog(QDialog):
             tasks = self.repository.list_no_due_tasks(today)
         elif filter_name == "Completed":
             tasks = self.repository.list_completed_tasks()
+        elif filter_name == self.RECYCLE_BIN:
+            tasks = self.repository.list_deleted_tasks()
         else:
             tasks = self.repository.list_all_tasks()
 
         search_text = self.search_input.text().strip()
         if search_text:
             matching_ids = {
-                task.id for task in self.repository.search_tasks(search_text)
+                task.id for task in self.repository.search_tasks(
+                    search_text, deleted=filter_name == self.RECYCLE_BIN
+                )
             }
             tasks = [task for task in tasks if task.id in matching_ids]
 
@@ -214,8 +231,18 @@ class AllTasksDialog(QDialog):
 
     def _update_action_buttons(self) -> None:
         task = self.selected_task()
-        self.edit_button.setEnabled(task is not None)
+        recycle_bin = self.in_recycle_bin
+        self.empty_bin_button.setVisible(recycle_bin)
+        self.empty_bin_button.setEnabled(recycle_bin and bool(self.current_tasks))
+        self.delete_button.setText("Delete Permanently" if recycle_bin else "Delete")
         self.delete_button.setEnabled(task is not None)
+        if recycle_bin:
+            # Deleted rows are read-only: no edit/complete/reopen/duplicate.
+            self.edit_button.setEnabled(False)
+            self.status_button.setText("Restore")
+            self.status_button.setEnabled(task is not None and task.is_deleted)
+            return
+        self.edit_button.setEnabled(task is not None)
         if task is None:
             self.status_button.setText("Mark Completed")
             self.status_button.setEnabled(False)
@@ -231,12 +258,18 @@ class AllTasksDialog(QDialog):
 
     def _emit_edit(self) -> None:
         task = self.selected_task()
+        if self.in_recycle_bin:
+            return
         if task is not None and task.id is not None:
             self.edit_requested.emit(task.id)
 
     def _emit_status_change(self) -> None:
         task = self.selected_task()
         if task is None or task.id is None:
+            return
+        if self.in_recycle_bin:
+            if task.is_deleted:
+                self.undelete_requested.emit(task.id)
             return
         if task.status.value == "completed":
             self.restore_requested.emit(task.id)
@@ -245,8 +278,19 @@ class AllTasksDialog(QDialog):
 
     def _emit_delete(self) -> None:
         task = self.selected_task()
-        if task is not None and task.id is not None:
+        if task is None or task.id is None:
+            return
+        if self.in_recycle_bin:
+            self.purge_requested.emit([task.id])
+        else:
             self.delete_requested.emit(task.id)
+
+    def _emit_empty_bin(self) -> None:
+        if not self.in_recycle_bin:
+            return
+        task_ids = [task.id for task in self.repository.list_deleted_tasks() if task.id is not None]
+        if task_ids:
+            self.purge_requested.emit(task_ids)
 
     def showEvent(self, event: QShowEvent) -> None:
         self.refresh()

@@ -166,14 +166,18 @@ def submit(root, value):
     return {'command_id': value['command_id'], 'status': 'queued', 'payload_sha256': digest(value)}
 
 
-def read_tasks(root, ref=None):
+def read_tasks(root, ref=None, include_deleted=False):
     db = safe_path(Path(root) / 'data' / 'sitetask.db')
     connection = sqlite3.connect(db.as_uri() + '?mode=ro', uri=True)
     connection.row_factory = sqlite3.Row
     try:
         connection.execute('PRAGMA query_only=ON')
         connection.execute('BEGIN')
-        rows = connection.execute('SELECT * FROM tasks WHERE source_reference=? ORDER BY id', (ref,)) if ref else connection.execute('SELECT * FROM tasks ORDER BY id')
+        columns = {row['name'] for row in connection.execute('PRAGMA table_info(tasks)')}
+        # Schema 5+: soft-deleted (recycle-bin) rows are hidden unless asked for.
+        live = ' AND deleted_at IS NULL' if 'deleted_at' in columns and not include_deleted else ''
+        rows = (connection.execute('SELECT * FROM tasks WHERE source_reference=?' + live + ' ORDER BY id', (ref,)) if ref
+                else connection.execute('SELECT * FROM tasks WHERE 1=1' + live + ' ORDER BY id'))
         return [{'task': dict(row), 'revision': revision(row)} for row in rows]
     finally:
         connection.close()
@@ -185,7 +189,10 @@ def main():
     sub = parser.add_subparsers(dest='action', required=True)
     sub.add_parser('submit').add_argument('json_file', type=Path)
     sub.add_parser('status').add_argument('command_id')
-    sub.add_parser('read').add_argument('--source-reference')
+    read_parser = sub.add_parser('read')
+    read_parser.add_argument('--source-reference')
+    read_parser.add_argument('--include-deleted', action='store_true',
+                             help='also return recycle-bin (soft-deleted) tasks')
     sub.add_parser('health')
     sub.add_parser('ping')
     args = parser.parse_args()
@@ -194,7 +201,7 @@ def main():
             with args.json_file.open('rb') as stream:
                 result = submit(args.root, decode(stream.read(MAX_BYTES + 1)))
         elif args.action == 'read':
-            result = read_tasks(args.root, args.source_reference)
+            result = read_tasks(args.root, args.source_reference, args.include_deleted)
         elif args.action == 'ping':
             result = submit(args.root, dict(version=1, command_id=str(uuid.uuid4()), operation='ping'))
         else:

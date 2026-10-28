@@ -10,7 +10,7 @@ from app.services.ai_task_parser import AIParseError
 from app.services.parser_router import ParserRouter
 
 
-NOW = datetime(2026, 7, 17, 14, 30, tzinfo=ZoneInfo("Indian/Mauritius"))
+NOW = datetime(2026, 7, 17, 14, 30, tzinfo=ZoneInfo("Asia/Dubai"))
 
 
 def local_result(confidence: float = 0.75) -> ParsedTaskResult:
